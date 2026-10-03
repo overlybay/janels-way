@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learning Modules — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html" class="active">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Learning Modules</h1>
+    <p style="color:var(--muted)">Bite-sized, parent-friendly training. Share these with families from the parent portal.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="icon">💬</div>
+        <h3>Communication</h3>
+        <p>Encouraging first words, using choices, and building functional requesting at home.</p>
+        <ul style="color:var(--muted); font-size:0.92rem; padding-left:18px">
+          <li>Lesson 1: Follow your child's lead</li>
+          <li>Lesson 2: Offering choices that teach</li>
+          <li>Lesson 3: Celebrating every attempt</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="icon">🏠</div>
+        <h3>Daily Living</h3>
+        <p>Morning routines, mealtimes, and bedtime — broken into small winnable steps.</p>
+        <ul style="color:var(--muted); font-size:0.92rem; padding-left:18px">
+          <li>Lesson 1: Visual schedules that work</li>
+          <li>Lesson 2: Chaining a routine step by step</li>
+          <li>Lesson 3: Gentle transitions</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="icon">🤝</div>
+        <h3>Social Skills</h3>
+        <p>Turn-taking, parallel play, and growing comfortable around peers.</p>
+        <ul style="color:var(--muted); font-size:0.92rem; padding-left:18px">
+          <li>Lesson 1: Joining play without pressure</li>
+          <li>Lesson 2: Taking turns with favorite toys</li>
+          <li>Lesson 3: Playdates that feel good</li>
+        </ul>
+      </div>
+    </div>
+    <p class="fineprint">TODO: connect to a CMS or the modules table if you want editable lessons later.</p>
+  </main>
+</div>
+<script>(async () => { const a = await JW.requireAuth("staff"); if (!a) return; })();</script>
+</body>
+</html>

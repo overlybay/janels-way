@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Sessions — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@daily-co/daily-js"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html" class="active">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Video Sessions</h1>
+
+    <h2>Schedule a session</h2>
+    <div class="list-card">
+      <div class="field"><label>Client</label><select id="sClient"></select></div>
+      <div class="field"><label>Date &amp; time</label><input id="sWhen" type="datetime-local"></div>
+      <button class="btn btn-sm" id="addSession">Schedule</button>
+    </div>
+
+    <h2>Upcoming</h2>
+    <div id="list"></div>
+
+    <h2>Video room</h2>
+    <div class="video-room">
+      <div class="tiles">
+        <div class="tiles" style="grid-column: 1 / -1; display:grid; gap:12px; grid-template-columns:1fr 1fr;">
+          <div class="video-tile" id="remoteTile">Client video appears here<br><small>Waiting for client to join…</small></div>
+          <div class="video-tile"><video id="localVideo" autoplay playsinline muted></video></div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="btnJoin">Join room</button>
+        <button id="btnMute">Mute</button>
+        <button id="btnCam">Camera off</button>
+        <button id="btnLeave" class="end">Leave</button>
+      </div>
+      <p class="fineprint" style="color:#B9B3D6">
+        TODO: paste your Daily.co room URL below (see integrations/dailyco-snippet.html).
+        Local camera preview works now; two-way calls need a Daily.co room.
+      </p>
+    </div>
+    <div id="dailyMount"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+
+  const clients = await JW.listClients();
+  document.getElementById("sClient").innerHTML =
+    clients.map(c => `<option value="${c.id}">${c.initials}</option>`).join("");
+
+  document.getElementById("addSession").addEventListener("click", async () => {
+    const client_id = document.getElementById("sClient").value;
+    const starts_at = document.getElementById("sWhen").value;
+    if (!client_id || !starts_at) { alert("Choose a client and a date/time."); return; }
+    const { error } = await JW.supabase.from("sessions")
+      .insert({ client_id, starts_at: new Date(starts_at).toISOString(), staff_id: auth.user.id });
+    if (error) { alert(error.message); return; }
+    location.reload();
+  });
+
+  const sessions = await JW.listSessions(true);
+  document.getElementById("list").innerHTML = sessions.length
+    ? sessions.map(s => `
+      <div class="list-card">
+        <h3>${s.clients?.initials || "Client"} <span class="pill scheduled">${s.status}</span></h3>
+        <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
+      </div>`).join("")
+    : `<div class="list-card"><div class="meta">No upcoming sessions.</div></div>`;
+
+  // Local camera preview (works with no keys).
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.getElementById("localVideo").srcObject = stream;
+    window._localStream = stream;
+  } catch (e) {
+    document.querySelector("#localVideo").parentElement.innerHTML = "Camera unavailable<br><small>Allow camera access to preview.</small>";
+  }
+
+  // ---- Daily.co two-way video (needs your room URL) ----
+  // TODO: create a room at https://dashboard.daily.co and paste its URL here.
+  const DAILY_ROOM_URL = "PASTE_YOUR_DAILY_ROOM_URL_HERE";
+  let call = null;
+
+  document.getElementById("btnJoin").addEventListener("click", async () => {
+    if (DAILY_ROOM_URL.indexOf("PASTE_YOUR") === 0) {
+      alert("Add your Daily.co room URL in sessions.html (search for TODO) to enable two-way video.");
+      return;
+    }
+    call = window.DailyIframe.createFrame(document.getElementById("dailyMount"), {
+      iframeStyle: { width: "100%", height: "420px", border: "0", borderRadius: "12px" }
+    });
+    await call.join({ url: DAILY_ROOM_URL });
+  });
+  document.getElementById("btnMute").addEventListener("click", (e) => {
+    if (window._localStream) {
+      const t = window._localStream.getAudioTracks()[0];
+      t.enabled = !t.enabled;
+      e.target.textContent = t.enabled ? "Mute" : "Unmute";
+    }
+  });
+  document.getElementById("btnCam").addEventListener("click", (e) => {
+    if (window._localStream) {
+      const t = window._localStream.getVideoTracks()[0];
+      t.enabled = !t.enabled;
+      e.target.textContent = t.enabled ? "Camera off" : "Camera on";
+    }
+  });
+  document.getElementById("btnLeave").addEventListener("click", async () => {
+    if (call) { await call.leave(); call = null; }
+  });
+})();
+</script>
+</body>
+</html>

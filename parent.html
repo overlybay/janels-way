@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Portal — Janel's Way</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+  <script src="charts.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="index.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="index.html" class="active">My Child's Progress</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1 id="title">My Child's Progress</h1>
+    <div id="content"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("parent");
+  if (!auth) return;
+
+  const file = await JW.getMyChild();
+  if (!file) {
+    document.getElementById("content").innerHTML =
+      `<div class="notice">Your account isn't linked to a child yet. Please ask your BCBA to link it — call (254) 415-2235.</div>`;
+    return;
+  }
+
+  document.getElementById("title").textContent = `Progress for ${file.client.initials}`;
+
+  const behaviors = [...new Set(file.behavior.map(b => b.behavior).filter(Boolean))];
+  const approved = file.notes.filter(n => n.status === "approved");
+  const upcoming = (await JW.supabase.from("sessions").select("*")
+    .eq("client_id", file.client.id).gte("starts_at", new Date().toISOString())
+    .order("starts_at").limit(5)).data || [];
+
+  document.getElementById("content").innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="num">${file.goals.length}</div><div class="lbl">Active goals</div></div>
+      <div class="stat"><div class="num">${approved.length}</div><div class="lbl">Shared notes</div></div>
+      <div class="stat"><div class="num">${upcoming.length}</div><div class="lbl">Upcoming sessions</div></div>
+    </div>
+
+    <h2>Goals</h2>
+    ${file.goals.map(g => `
+      <div class="list-card"><h3>${g.title}</h3><div class="meta">${g.target_text || ""}</div></div>`).join("")
+      || `<div class="list-card"><div class="meta">No goals shared yet.</div></div>`}
+
+    <h2>Progress</h2>
+    <div class="field" style="max-width:320px"><label>Behavior</label>
+      <select id="bSel">${behaviors.map(b => `<option>${b}</option>`).join("")}</select>
+    </div>
+    <canvas class="graph" id="graph"></canvas>
+
+    <h2>Notes from your team</h2>
+    ${approved.map(n => `
+      <div class="list-card">
+        <div class="meta">${new Date(n.created_at).toLocaleDateString()}</div>
+        <p style="white-space:pre-wrap">${n.content || ""}</p>
+      </div>`).join("")
+      || `<div class="list-card"><div class="meta">No shared notes yet.</div></div>`}
+
+    <h2>Upcoming sessions</h2>
+    ${upcoming.map(s => `
+      <div class="list-card"><div class="meta">${new Date(s.starts_at).toLocaleString()} — video link will be shared by your BCBA</div></div>`).join("")
+      || `<div class="list-card"><div class="meta">Nothing scheduled.</div></div>`}
+  `;
+
+  const draw = () => {
+    const sel = document.getElementById("bSel");
+    if (sel) JWCharts.drawLineChart(
+      document.getElementById("graph"),
+      JWCharts.dailyTotals(file.behavior, sel.value || null, 14));
+  };
+  document.getElementById("bSel")?.addEventListener("change", draw);
+  draw();
+  window.addEventListener("resize", draw);
+})();
+</script>
+</body>
+</html>

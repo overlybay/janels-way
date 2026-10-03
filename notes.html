@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+  <script src="ai-draft.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html" class="active">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Session Notes</h1>
+    <p style="color:var(--muted)">
+      <span class="demo-tag">AI Note Assistant</span><br>
+      Fill in the session data, generate a draft, edit it, then save it to the client's file
+      or submit it for BCBA review. The assistant drafts from your data — it does not
+      listen to calls. See <code>integrations/ai-notes.md</code> for the roadmap.
+    </p>
+
+    <div class="list-card">
+      <div class="field"><label>Client</label><select id="nClient"></select></div>
+      <div class="field"><label>Session</label><select id="nSession"><option value="">(no linked session)</option></select></div>
+      <div class="field"><label>Date</label><input id="nDate" type="date"></div>
+      <div class="field"><label>Duration (minutes)</label><input id="nDur" type="number" min="1" value="60"></div>
+      <div class="field"><label>Participants</label><input id="nPart" placeholder="e.g. BCBA Smith, RBT Jones, parent"></div>
+
+      <div class="field"><label>Goals addressed</label><div id="nGoals"><span class="meta">Select a client first.</span></div></div>
+
+      <div class="field">
+        <label>Behavior data (tallies)</label>
+        <div id="tallies"></div>
+        <button class="btn btn-outline btn-sm" id="addTally" type="button">+ Add behavior</button>
+      </div>
+
+      <div class="field"><label>ABC narrative / observations</label>
+        <textarea id="nAbc" placeholder="Antecedent → Behavior → Consequence notes…"></textarea>
+      </div>
+
+      <button class="btn btn-outline" id="genDraft">✨ Generate AI Draft</button>
+
+      <div class="field" style="margin-top:14px"><label>Note content (editable)</label>
+        <textarea id="nContent" style="min-height:220px"></textarea>
+      </div>
+
+      <div class="cta-row" style="justify-content:flex-start">
+        <button class="btn" id="saveDraft">Save draft</button>
+        <button class="btn btn-outline" id="submitNote">Submit for review</button>
+      </div>
+    </div>
+
+    <h2>All notes</h2>
+    <div class="field" style="display:flex; gap:10px; max-width:520px">
+      <select id="fClient"><option value="">All clients</option></select>
+      <select id="fStatus">
+        <option value="">All statuses</option>
+        <option value="draft">Draft</option>
+        <option value="submitted">Submitted</option>
+        <option value="approved">Approved</option>
+      </select>
+      <button class="btn btn-sm btn-outline" id="applyF">Filter</button>
+    </div>
+    <div id="list"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+
+  const clients = await JW.listClients();
+  const sessions = await JW.listSessions(false);
+  const clientSel = document.getElementById("nClient");
+  clientSel.innerHTML = clients.map(c => `<option value="${c.id}">${c.initials}</option>`).join("");
+  document.getElementById("fClient").innerHTML =
+    `<option value="">All clients</option>` + clients.map(c => `<option value="${c.id}">${c.initials}</option>`).join("");
+
+  function loadSessionsForClient() {
+    const cid = clientSel.value;
+    document.getElementById("nSession").innerHTML =
+      `<option value="">(no linked session)</option>` +
+      sessions.filter(s => s.client_id === cid)
+        .map(s => `<option value="${s.id}">${new Date(s.starts_at).toLocaleString()}</option>`).join("");
+  }
+
+  async function loadGoals() {
+    const cid = clientSel.value;
+    const { data } = await JW.supabase.from("goals").select("*").eq("client_id", cid);
+    document.getElementById("nGoals").innerHTML = data.length
+      ? data.map(g => `<label style="display:block; font-weight:normal">
+          <input type="checkbox" class="goalCk" value="${g.title}"> ${g.title}</label>`).join("")
+      : `<span class="meta">No goals for this client yet.</span>`;
+  }
+  clientSel.addEventListener("change", () => { loadSessionsForClient(); loadGoals(); });
+  loadSessionsForClient(); loadGoals();
+
+  // Behavior tallies.
+  const talliesEl = document.getElementById("tallies");
+  function addTallyRow() {
+    const row = document.createElement("div");
+    row.className = "tally-row";
+    row.innerHTML = `<input placeholder="Behavior, e.g. vocal mand" class="tBeh">
+                     <input type="number" min="0" value="0" class="tCount" style="max-width:90px">`;
+    talliesEl.appendChild(row);
+  }
+  document.getElementById("addTally").addEventListener("click", addTallyRow);
+  addTallyRow();
+
+  function collectTallies() {
+    return [...talliesEl.querySelectorAll(".tally-row")]
+      .map(r => ({
+        behavior: r.querySelector(".tBeh").value.trim(),
+        count: parseInt(r.querySelector(".tCount").value, 10) || 0
+      }))
+      .filter(t => t.behavior);
+  }
+
+  document.getElementById("genDraft").addEventListener("click", () => {
+    const draft = JW_AI.buildNoteDraft({
+      clientInitials: clientSel.selectedOptions[0].textContent,
+      date: document.getElementById("nDate").value,
+      durationMin: document.getElementById("nDur").value,
+      participants: document.getElementById("nPart").value.split(",").map(s => s.trim()).filter(Boolean),
+      goals: [...document.querySelectorAll(".goalCk:checked")].map(c => c.value),
+      behaviors: collectTallies(),
+      abc: document.getElementById("nAbc").value
+    });
+    document.getElementById("nContent").value = draft;
+  });
+
+  async function persist(status) {
+    const content = document.getElementById("nContent").value.trim();
+    if (!content) { alert("Generate or write the note content first."); return; }
+    // Also store behavior tallies as structured data for graphing.
+    for (const t of collectTallies()) {
+      await JW.recordBehavior({
+        client_id: clientSel.value,
+        session_id: document.getElementById("nSession").value || null,
+        behavior: t.behavior, count: t.count
+      });
+    }
+    await JW.saveNote({
+      client_id: clientSel.value,
+      session_id: document.getElementById("nSession").value || null,
+      content, status
+    });
+    alert(status === "draft" ? "Draft saved to the client file." : "Note submitted for BCBA review.");
+    location.reload();
+  }
+  document.getElementById("saveDraft").addEventListener("click", () => persist("draft"));
+  document.getElementById("submitNote").addEventListener("click", () => persist("submitted"));
+
+  async function renderList() {
+    const notes = await JW.listNotes({
+      client_id: document.getElementById("fClient").value || undefined,
+      status: document.getElementById("fStatus").value || undefined
+    });
+    document.getElementById("list").innerHTML = notes.length
+      ? notes.map(n => `
+        <div class="list-card">
+          <h3>${n.clients?.initials || "Client"} <span class="pill ${n.status}">${n.status}</span></h3>
+          <div class="meta">${new Date(n.created_at).toLocaleString()}</div>
+          <p style="white-space:pre-wrap">${n.content || ""}</p>
+          ${n.status === "submitted" ? `<button class="btn btn-sm" data-approve="${n.id}">Approve</button>` : ""}
+        </div>`).join("")
+      : `<div class="list-card"><div class="meta">No notes match.</div></div>`;
+    document.querySelectorAll("[data-approve]").forEach(b =>
+      b.addEventListener("click", async () => {
+        await JW.updateNoteStatus(b.dataset.approve, "approved");
+        renderList();
+      }));
+  }
+  document.getElementById("applyF").addEventListener("click", renderList);
+  renderList();
+})();
+</script>
+</body>
+</html>

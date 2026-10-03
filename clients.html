@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clients — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html" class="active">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Clients</h1>
+    <p style="color:var(--muted)">Client files use initials only — never enter full names.</p>
+
+    <h2>Add client</h2>
+    <div class="list-card">
+      <div class="field"><label>Initials</label><input id="fInitials" placeholder="e.g. J.M."></div>
+      <div class="field"><label>Age</label><input id="fAge" type="number" min="1" max="21"></div>
+      <div class="field"><label>BCBA</label><input id="fBcba" placeholder="Supervising BCBA name"></div>
+      <button class="btn btn-sm" id="addClient">Add client</button>
+    </div>
+
+    <h2>All clients</h2>
+    <div id="list"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+
+  async function refresh() {
+    const clients = await JW.listClients();
+    document.getElementById("list").innerHTML = clients.length
+      ? clients.map(c => `
+        <div class="list-card">
+          <h3><a href="client.html?id=${c.id}">${c.initials}</a></h3>
+          <div class="meta">Age ${c.age ?? "—"} · BCBA: ${c.bcba || "—"}</div>
+        </div>`).join("")
+      : `<div class="list-card"><div class="meta">No clients yet — add the first one above.</div></div>`;
+  }
+
+  document.getElementById("addClient").addEventListener("click", async () => {
+    const initials = document.getElementById("fInitials").value.trim();
+    const age = parseInt(document.getElementById("fAge").value, 10) || null;
+    const bcba = document.getElementById("fBcba").value.trim() || null;
+    if (!initials) { alert("Initials are required."); return; }
+    const { error } = await JW.supabase.from("clients").insert({ initials, age, bcba });
+    if (error) { alert(error.message); return; }
+    document.getElementById("fInitials").value = "";
+    document.getElementById("fAge").value = "";
+    document.getElementById("fBcba").value = "";
+    refresh();
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>

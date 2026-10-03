@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html" class="active">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1 id="welcome">Dashboard</h1>
+    <div class="stat-grid">
+      <div class="stat"><div class="num" id="statClients">–</div><div class="lbl">Active clients</div></div>
+      <div class="stat"><div class="num" id="statSessions">–</div><div class="lbl">Sessions this week</div></div>
+      <div class="stat"><div class="num" id="statPending">–</div><div class="lbl">Notes pending review</div></div>
+    </div>
+
+    <h2>Upcoming sessions</h2>
+    <div id="sessions"></div>
+
+    <h2>Recent notes</h2>
+    <div id="notes"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+  document.getElementById("welcome").textContent =
+    "Welcome back, " + (auth.profile.email || "clinician");
+
+  const [clients, sessions, pending, recent] = await Promise.all([
+    JW.listClients(),
+    JW.listSessions(true),
+    JW.listNotes({ status: "submitted" }),
+    JW.listNotes({})
+  ]);
+
+  document.getElementById("statClients").textContent = clients.length;
+  const weekFromNow = Date.now() + 7 * 864e5;
+  document.getElementById("statSessions").textContent =
+    sessions.filter(s => new Date(s.starts_at).getTime() < weekFromNow).length;
+  document.getElementById("statPending").textContent = pending.length;
+
+  document.getElementById("sessions").innerHTML = sessions.length
+    ? sessions.slice(0, 5).map(s => `
+      <div class="list-card">
+        <h3>${s.clients?.initials || "Client"} <span class="pill scheduled">${s.status}</span></h3>
+        <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
+      </div>`).join("")
+    : `<div class="list-card"><div class="meta">No upcoming sessions scheduled.</div></div>`;
+
+  document.getElementById("notes").innerHTML = recent.length
+    ? recent.slice(0, 5).map(n => `
+      <div class="list-card">
+        <h3>${n.clients?.initials || "Client"} <span class="pill ${n.status}">${n.status}</span></h3>
+        <div class="meta">${new Date(n.created_at).toLocaleString()}</div>
+        <p>${(n.content || "").slice(0, 140)}…</p>
+      </div>`).join("")
+    : `<div class="list-card"><div class="meta">No notes yet.</div></div>`;
+})();
+</script>
+</body>
+</html>

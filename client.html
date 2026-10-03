@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client File — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+  <script src="charts.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html" class="active">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <p><a href="clients.html">← All clients</a></p>
+    <h1 id="title">Client file</h1>
+    <div id="profile"></div>
+
+    <h2>Goals</h2>
+    <div id="goals"></div>
+    <div class="list-card">
+      <div class="field"><label>New goal</label><input id="gTitle" placeholder="Goal title, e.g. Requesting with 2-word phrases"></div>
+      <div class="field"><label>Target</label><input id="gTarget" placeholder="Mastery target, e.g. 80% independent across 3 sessions"></div>
+      <button class="btn btn-sm" id="addGoal">Add goal</button>
+    </div>
+
+    <h2>Progress graph</h2>
+    <div class="field" style="max-width:320px">
+      <label>Behavior to graph</label>
+      <select id="behaviorSel"></select>
+    </div>
+    <canvas class="graph" id="graph"></canvas>
+    <p class="fineprint">Progress bars reflect logged data points in the last 30 days.
+      TODO: replace with your mastery criteria (e.g. % independent correct trials).</p>
+
+    <h2>Session notes</h2>
+    <div id="notes"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+  const clientId = new URLSearchParams(location.search).get("id");
+  if (!clientId) { location.href = "clients.html"; return; }
+
+  const file = await JW.getClientFile(clientId);
+  document.getElementById("title").textContent = `Client file — ${file.client.initials}`;
+  document.getElementById("profile").innerHTML = `
+    <div class="list-card"><div class="meta">Age ${file.client.age ?? "—"} · BCBA: ${file.client.bcba || "—"}</div></div>`;
+
+  // Goals + simple data-driven progress bars (last 30 days).
+  const cutoff = Date.now() - 30 * 864e5;
+  const recent = file.behavior.filter(b => new Date(b.recorded_at).getTime() > cutoff);
+  document.getElementById("goals").innerHTML = file.goals.length
+    ? file.goals.map(g => {
+        const pts = recent.length; // TODO: tie data points to specific goals
+        const pct = Math.min(100, pts * 12);
+        return `<div class="list-card">
+          <h3>${g.title}</h3>
+          <div class="meta">${g.target_text || ""}</div>
+          <div class="progress"><div style="width:${pct}%"></div></div>
+          <div class="meta">${pts} data point(s) logged in the last 30 days</div>
+        </div>`;
+      }).join("")
+    : `<div class="list-card"><div class="meta">No goals yet — add the first one below.</div></div>`;
+
+  document.getElementById("addGoal").addEventListener("click", async () => {
+    const title = document.getElementById("gTitle").value.trim();
+    const target_text = document.getElementById("gTarget").value.trim() || null;
+    if (!title) { alert("Goal title is required."); return; }
+    const { error } = await JW.supabase.from("goals").insert({ client_id: clientId, title, target_text });
+    if (error) { alert(error.message); return; }
+    location.reload();
+  });
+
+  // Behavior graph.
+  const behaviors = [...new Set(file.behavior.map(b => b.behavior).filter(Boolean))];
+  const sel = document.getElementById("behaviorSel");
+  sel.innerHTML = `<option value="">All behaviors</option>` +
+    behaviors.map(b => `<option>${b}</option>`).join("");
+  const draw = () => JWCharts.drawLineChart(
+    document.getElementById("graph"),
+    JWCharts.dailyTotals(file.behavior, sel.value || null, 14)
+  );
+  sel.addEventListener("change", draw);
+  draw();
+  window.addEventListener("resize", draw);
+
+  document.getElementById("notes").innerHTML = file.notes.length
+    ? file.notes.map(n => `
+      <div class="list-card">
+        <h3><span class="pill ${n.status}">${n.status}</span></h3>
+        <div class="meta">${new Date(n.created_at).toLocaleString()}</div>
+        <p style="white-space:pre-wrap">${n.content || ""}</p>
+      </div>`).join("")
+    : `<div class="list-card"><div class="meta">No notes yet. Write one in the Notes section.</div></div>`;
+})();
+</script>
+</body>
+</html>

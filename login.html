@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — Janel's Way</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -58,7 +58,7 @@
       // Read the user's role from profiles and route accordingly.
       const profile = await JW.getProfile();
       if (!profile) { msg("Signed in, but no profile found. Please contact support."); return; }
-      window.location.href = profile.role === "staff" ? "staff/dashboard.html" : "parent/index.html";
+      window.location.href = profile.role === "staff" ? "dashboard.html" : "parent.html";
     }
 
     document.getElementById("showSignup").addEventListener("click", (e) => {

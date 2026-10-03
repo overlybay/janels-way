@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Treatment Plans — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html" class="active">Treatment Plans</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Treatment Plans</h1>
+    <p style="color:var(--muted)">Suggested goals per client, reviewed by our clinical team. Add or adjust goals any time.</p>
+    <div class="field" style="max-width:320px">
+      <label>Client</label>
+      <select id="pClient"></select>
+    </div>
+    <div id="plans"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+
+  const clients = await JW.listClients();
+  const sel = document.getElementById("pClient");
+  sel.innerHTML = clients.map(c => `<option value="${c.id}">${c.initials}</option>`).join("");
+
+  async function render() {
+    const file = await JW.getClientFile(sel.value);
+    document.getElementById("plans").innerHTML = `
+      <div class="list-card">
+        <h3>Treatment plan — ${file.client.initials}</h3>
+        <div class="meta">Age ${file.client.age ?? "—"} · Supervising BCBA: ${file.client.bcba || "—"}</div>
+      </div>` +
+      (file.goals.length
+        ? file.goals.map(g => `
+          <div class="list-card">
+            <h3>${g.title}</h3>
+            <div class="meta">Target: ${g.target_text || "—"}</div>
+            <div class="meta">Added ${new Date(g.created_at).toLocaleDateString()}</div>
+          </div>`).join("")
+        : `<div class="list-card"><div class="meta">No goals yet. Add them from the client file.</div></div>`) +
+      `<p class="fineprint">TODO: wire AI-suggested goals here (see integrations/ai-notes.md) — suggestions must always be reviewed by the clinical team before saving.</p>`;
+  }
+  sel.addEventListener("change", render);
+  render();
+})();
+</script>
+</body>
+</html>
