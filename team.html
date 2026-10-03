@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team & Families — Janel's Way Staff</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="supabase.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="logo" href="dashboard.html">Janel's <span>Way</span></a>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="clients.html">Clients</a>
+      <a href="sessions.html">Video Sessions</a>
+      <a href="notes.html">Notes</a>
+      <a href="modules.html">Learning Modules</a>
+      <a href="plans.html">Treatment Plans</a>
+      <a href="team.html" class="active">Team & Families</a>
+    </nav>
+    <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <h1>Team & Families</h1>
+
+    <h2>New accounts</h2>
+    <p class="fineprint" style="color:#B9B3D6">New signups waiting to be linked to a child or activated as staff.</p>
+    <div id="newAccounts"></div>
+
+    <h2>Parents</h2>
+    <div id="parents"></div>
+
+    <h2>Staff</h2>
+    <div id="staff"></div>
+  </main>
+</div>
+
+<script>
+(async () => {
+  const auth = await JW.requireAuth("staff");
+  if (!auth) return;
+
+  const { data: profiles, error } = await JW.supabase
+    .from("profiles").select("*").order("created_at", { ascending: true });
+  if (error) { alert(error.message); return; }
+  const clients = await JW.listClients();
+
+  const esc = s => String(s ?? "").replace(/</g, "&lt;");
+  const clientOptions = () => clients.map(c =>
+    `<option value="${c.id}">${esc(c.initials)}</option>`).join("");
+
+  const fresh = profiles.filter(p => p.role === "parent" && !p.client_id);
+  const parents = profiles.filter(p => p.role === "parent" && p.client_id);
+  const staff = profiles.filter(p => p.role === "staff");
+
+  document.getElementById("newAccounts").innerHTML = fresh.length ? fresh.map(p => `
+    <div class="list-card">
+      <h3>${esc(p.email) || "No email"}</h3>
+      <div class="meta">Joined ${new Date(p.created_at).toLocaleDateString()}</div>
+      <div class="field" style="max-width:320px"><label>Link to child</label>
+        <select id="link-${p.id}"><option value="">— choose —</option>${clientOptions()}</select>
+      </div>
+      <button class="btn btn-sm" data-link="${p.id}">Link parent</button>
+      <button class="btn btn-sm btn-outline" data-makestaff="${p.id}">Make staff</button>
+    </div>`).join("")
+    : `<div class="list-card"><div class="meta">No new accounts.</div></div>`;
+
+  document.getElementById("parents").innerHTML = parents.length ? parents.map(p => {
+    const child = clients.find(c => c.id === p.client_id);
+    return `
+    <div class="list-card">
+      <h3>${esc(p.email) || "No email"}</h3>
+      <div class="meta">Linked to: ${esc(child?.initials || "—")}</div>
+      <button class="btn btn-sm btn-outline" data-unlink="${p.id}">Unlink</button>
+    </div>`; }).join("")
+    : `<div class="list-card"><div class="meta">No linked parents yet.</div></div>`;
+
+  document.getElementById("staff").innerHTML = staff.length ? staff.map(p => `
+    <div class="list-card"><h3>${esc(p.email) || "No email"}</h3>
+    <div class="meta">Joined ${new Date(p.created_at).toLocaleDateString()}${p.id === auth.user.id ? " · that's you" : ""}</div></div>`).join("")
+    : `<div class="list-card"><div class="meta">No staff yet.</div></div>`;
+
+  document.querySelectorAll("[data-link]").forEach(b => b.addEventListener("click", async () => {
+    const clientId = document.getElementById("link-" + b.dataset.link).value;
+    if (!clientId) { alert("Choose a child first."); return; }
+    const { error } = await JW.supabase.from("profiles").update({ client_id: clientId }).eq("id", b.dataset.link);
+    if (error) { alert(error.message); return; }
+    location.reload();
+  }));
+
+  document.querySelectorAll("[data-makestaff]").forEach(b => b.addEventListener("click", async () => {
+    if (!confirm("Make this account staff? They'll be able to see all clients and data.")) return;
+    const { error } = await JW.supabase.from("profiles").update({ role: "staff" }).eq("id", b.dataset.makestaff);
+    if (error) { alert(error.message); return; }
+    location.reload();
+  }));
+
+  document.querySelectorAll("[data-unlink]").forEach(b => b.addEventListener("click", async () => {
+    if (!confirm("Unlink this parent from their child?")) return;
+    const { error } = await JW.supabase.from("profiles").update({ client_id: null }).eq("id", b.dataset.unlink);
+    if (error) { alert(error.message); return; }
+    location.reload();
+  }));
+})();
+</script>
+</body>
+</html>

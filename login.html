@@ -35,8 +35,9 @@
       <button class="btn" id="signin" style="width:100%">Sign In →</button>
 
       <p class="help">
-        New here? <a href="#" id="showSignup">Create a parent account</a><br>
+        New here? <a href="#" id="showSignup">Create a parent account</a> · <a href="#" id="showStaffSignup">Staff / BCBA login</a><br>
         <span id="signupHint" style="display:none">Parents: create an account below, then ask your BCBA to link it to your child.<br></span>
+        <span id="staffHint" style="display:none">Staff: create your login below, then ask your admin to activate staff access.<br></span>
       </p>
       <button class="btn btn-outline" id="signup" style="width:100%; display:none">Create Account</button>
 
@@ -61,11 +62,20 @@
       window.location.href = profile.role === "staff" ? "dashboard.html" : "parent.html";
     }
 
+    const revealSignup = (hintId, linkId, otherLinkId, otherHintId) => {
+      document.getElementById("signup").style.display = "block";
+      document.getElementById(hintId).style.display = "inline";
+      document.getElementById(otherHintId).style.display = "none";
+      document.getElementById(linkId).style.display = "none";
+      document.getElementById(otherLinkId).style.display = "none";
+    };
     document.getElementById("showSignup").addEventListener("click", (e) => {
       e.preventDefault();
-      document.getElementById("signup").style.display = "block";
-      document.getElementById("signupHint").style.display = "inline";
-      e.target.style.display = "none";
+      revealSignup("signupHint", "showSignup", "showStaffSignup", "staffHint");
+    });
+    document.getElementById("showStaffSignup").addEventListener("click", (e) => {
+      e.preventDefault();
+      revealSignup("staffHint", "showStaffSignup", "showSignup", "signupHint");
     });
 
     document.getElementById("signin").addEventListener("click", async () => {

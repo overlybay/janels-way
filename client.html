@@ -21,6 +21,7 @@
       <a href="notes.html">Notes</a>
       <a href="modules.html">Learning Modules</a>
       <a href="plans.html">Treatment Plans</a>
+      <a href="team.html">Team & Families</a>
     </nav>
     <div class="signout"><button onclick="JW.signOut()">Sign out</button></div>
   </aside>
@@ -29,6 +30,11 @@
     <p><a href="clients.html">← All clients</a></p>
     <h1 id="title">Client file</h1>
     <div id="profile"></div>
+    <div class="list-card" id="bcbaCard">
+      <h3>Assigned BCBA</h3>
+      <div class="field" style="max-width:320px"><label>BCBA / supervising staff</label><select id="bcbaSel"></select></div>
+      <button class="btn btn-sm" id="saveBcba">Save</button>
+    </div>
 
     <h2>Goals</h2>
     <div id="goals"></div>
@@ -63,6 +69,18 @@
   document.getElementById("title").textContent = `Client file — ${file.client.initials}`;
   document.getElementById("profile").innerHTML = `
     <div class="list-card"><div class="meta">Age ${file.client.age ?? "—"} · BCBA: ${file.client.bcba || "—"}</div></div>`;
+  // Assigned BCBA dropdown.
+  const { data: staffList } = await JW.supabase.from("profiles").select("email").eq("role", "staff").order("email");
+  document.getElementById("bcbaSel").innerHTML =
+    `<option value="">— none —</option>` + (staffList || []).map(s =>
+      `<option${s.email === file.client.bcba ? " selected" : ""}>${s.email}</option>`).join("");
+  document.getElementById("saveBcba").addEventListener("click", async () => {
+    const bcba = document.getElementById("bcbaSel").value || null;
+    const { error } = await JW.supabase.from("clients").update({ bcba }).eq("id", clientId);
+    if (error) { alert(error.message); return; }
+    location.reload();
+  });
+
 
   // Goals + simple data-driven progress bars (last 30 days).
   const cutoff = Date.now() - 30 * 864e5;
