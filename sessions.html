@@ -105,6 +105,12 @@
   // which creates a unique Daily.co room and saves its URL on the session.
   let call = null;
 
+
+  function errText(e) {
+    if (e && e.message) return e.message;
+    try { return JSON.stringify(e); } catch (_) { return String(e); }
+  }
+
   async function joinSessionRoom(sessionId, btn) {
     const label = btn ? btn.textContent : "Start video";
     if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
@@ -121,7 +127,7 @@
       await call.join({ url: data.room_url });
       document.getElementById("dailyMount").scrollIntoView({ behavior: "smooth", block: "center" });
     } catch (e) {
-      alert("Could not start video: " + (e.message || e));
+      alert("Could not start video: " + errText(e));
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = label; }
     }

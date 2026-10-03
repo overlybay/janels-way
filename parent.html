@@ -104,6 +104,12 @@
     </div>`;
   };
 
+
+  function errText(e) {
+    if (e && e.message) return e.message;
+    try { return JSON.stringify(e); } catch (_) { return String(e); }
+  }
+
   // Join (or create) this session's private room, inside the portal.
   let pvCall = null;
   async function joinCall(sessionId, btn) {
@@ -123,7 +129,7 @@
       await pvCall.join({ url: data.room_url });
       document.getElementById("pvRoom").scrollIntoView({ behavior: "smooth", block: "center" });
     } catch (e) {
-      alert("Could not join the call: " + (e.message || e));
+      alert("Could not join the call: " + errText(e));
     } finally {
       btn.disabled = false; btn.textContent = label;
     }
