@@ -40,13 +40,68 @@
 
   document.getElementById("title").textContent = `Progress for ${file.client.initials}`;
 
-  const behaviors = [...new Set(file.behavior.map(b => b.behavior).filter(Boolean))];
   const approved = file.notes.filter(n => n.status === "approved");
-  const upcoming = (await JW.supabase.from("sessions").select("*")
-    .eq("client_id", file.client.id).gte("starts_at", new Date().toISOString())
-    .order("starts_at").limit(5)).data || [];
+
+  // ---- AI summary: plain-language progress overview generated from the child's data ----
+  function aiSummary() {
+    const bits = [];
+    const name = file.client.initials;
+    const g = file.goals.length;
+    bits.push(`${name} is working on ${g} goal${g === 1 ? "" : "s"} right now.`);
+
+    const counts = {};
+    file.behavior.forEach(r => {
+      if (r.behavior) counts[r.behavior] = (counts[r.behavior] || 0) + Number(r.count || 0);
+    });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    if (top) {
+      const t = JWCharts.dailyTotals(file.behavior, top[0], 14);
+      const prev = t.slice(0, 7).reduce((a, d) => a + d.value, 0) / 7;
+      const cur = t.slice(7).reduce((a, d) => a + d.value, 0) / 7;
+      if (cur < prev) bits.push(`"${top[0]}" is trending down (about ${cur.toFixed(1)} per day this week vs ${prev.toFixed(1)} last week) — great progress.`);
+      else if (cur > prev) bits.push(`"${top[0]}" is up this week (about ${cur.toFixed(1)} per day vs ${prev.toFixed(1)} last week) — the team is watching this closely.`);
+      else bits.push(`"${top[0]}" held steady this week.`);
+    } else {
+      bits.push(`No behavior data recorded yet — check back after the next session.`);
+    }
+
+    bits.push(approved.length
+      ? `Your team has shared ${approved.length} note${approved.length === 1 ? "" : "s"} with you below.`
+      : `No team notes shared yet.`);
+    return bits.join(" ");
+  }
+
+  async function loadUpcoming() {
+    const { data } = await JW.supabase.from("sessions").select("*")
+      .eq("client_id", file.client.id).gte("starts_at", new Date().toISOString())
+      .order("starts_at").limit(5);
+    return data || [];
+  }
+  async function loadPast() {
+    const { data } = await JW.supabase.from("sessions").select("*")
+      .eq("client_id", file.client.id).lt("starts_at", new Date().toISOString())
+      .order("starts_at", { ascending: false }).limit(10);
+    return data || [];
+  }
+  const upcomingHTML = (upcoming) => upcoming.map(s => `
+    <div class="list-card">
+      <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
+      ${s.room_url
+        ? `<div style="margin-top:8px"><button class="btn btn-sm" onclick="window.open('${s.room_url}','_blank')">Join video call</button></div>`
+        : `<div class="meta">The video button appears here when your BCBA starts the call.</div>`}
+    </div>`).join("")
+    || `<div class="list-card"><div class="meta">Nothing scheduled.</div></div>`;
+
+  const upcoming = await loadUpcoming();
+  const past = await loadPast();
+  const behaviors = [...new Set(file.behavior.map(b => b.behavior).filter(Boolean))];
 
   document.getElementById("content").innerHTML = `
+    <div class="list-card"><div class="meta">Age ${file.client.age ?? "—"} · BCBA: ${file.client.bcba || "—"}</div></div>
+
+    <h2>AI Summary</h2>
+    <div class="list-card"><p style="white-space:pre-wrap">${aiSummary()}</p></div>
+
     <div class="stat-grid">
       <div class="stat"><div class="num">${file.goals.length}</div><div class="lbl">Active goals</div></div>
       <div class="stat"><div class="num">${approved.length}</div><div class="lbl">Shared notes</div></div>
@@ -73,14 +128,12 @@
       || `<div class="list-card"><div class="meta">No shared notes yet.</div></div>`}
 
     <h2>Upcoming sessions</h2>
-    ${upcoming.map(s => `
-      <div class="list-card">
-        <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
-        ${s.room_url
-          ? `<button class="btn btn-sm" onclick="window.open('${s.room_url}','_blank')">Join video</button>`
-          : `<div class="meta">Video link appears here once your BCBA starts the session.</div>`}
-      </div>`).join("")
-      || `<div class="list-card"><div class="meta">Nothing scheduled.</div></div>`}
+    <div id="upcoming">${upcomingHTML(upcoming)}</div>
+
+    <h2>History</h2>
+    ${past.map(s => `
+      <div class="list-card"><div class="meta">${new Date(s.starts_at).toLocaleString()} · ${s.status}</div></div>`).join("")
+      || `<div class="list-card"><div class="meta">No past sessions yet.</div></div>`}
   `;
 
   const draw = () => {
@@ -92,6 +145,13 @@
   document.getElementById("bSel")?.addEventListener("change", draw);
   draw();
   window.addEventListener("resize", draw);
+
+  // Keep the video button fresh: re-check for new sessions/rooms every 30 seconds.
+  setInterval(async () => {
+    try {
+      document.getElementById("upcoming").innerHTML = upcomingHTML(await loadUpcoming());
+    } catch (e) { /* keep old list on error */ }
+  }, 30000);
 })();
 </script>
 </body>

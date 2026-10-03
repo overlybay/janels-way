@@ -85,9 +85,9 @@
   document.getElementById("list").innerHTML = sessions.length
     ? sessions.map(s => `
       <div class="list-card">
-        <h3>${s.clients?.initials || "Client"} <span class="pill scheduled">${s.status}</span></h3>
+        <h3>${s.clients?.initials || "Client"} <span class="pill scheduled">${s.status}</span>${s.room_url ? ' <span class="pill" style="background:#1a7f4b;color:#fff">Live now</span>' : ""}</h3>
         <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
-        <button class="btn btn-sm" data-start-video="${s.id}">Start video</button>
+        <button class="btn btn-sm" data-start-video="${s.id}">${s.room_url ? "Join video" : "Start video"}</button>
       </div>`).join("")
     : `<div class="list-card"><div class="meta">No upcoming sessions.</div></div>`;
 
@@ -106,6 +106,7 @@
   let call = null;
 
   async function joinSessionRoom(sessionId, btn) {
+    const label = btn ? btn.textContent : "Start video";
     if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
     try {
       const { data, error } = await JW.supabase.functions.invoke("create-session-room", {
@@ -122,7 +123,7 @@
     } catch (e) {
       alert("Could not start video: " + (e.message || e));
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Start video"; }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
     }
   }
 
