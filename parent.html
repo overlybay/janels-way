@@ -74,7 +74,12 @@
 
     <h2>Upcoming sessions</h2>
     ${upcoming.map(s => `
-      <div class="list-card"><div class="meta">${new Date(s.starts_at).toLocaleString()} — video link will be shared by your BCBA</div></div>`).join("")
+      <div class="list-card">
+        <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
+        ${s.room_url
+          ? `<button class="btn btn-sm" onclick="window.open('${s.room_url}','_blank')">Join video</button>`
+          : `<div class="meta">Video link appears here once your BCBA starts the session.</div>`}
+      </div>`).join("")
       || `<div class="list-card"><div class="meta">Nothing scheduled.</div></div>`}
   `;
 

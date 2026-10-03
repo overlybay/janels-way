@@ -47,14 +47,14 @@
         </div>
       </div>
       <div class="controls">
-        <button id="btnJoin">Join room</button>
         <button id="btnMute">Mute</button>
         <button id="btnCam">Camera off</button>
         <button id="btnLeave" class="end">Leave</button>
       </div>
       <p class="fineprint" style="color:#B9B3D6">
-        TODO: paste your Daily.co room URL below (see integrations/dailyco-snippet.html).
-        Local camera preview works now; two-way calls need a Daily.co room.
+        Each session gets its own private video room — press "Start video" on a
+        session above. The parent joins from their portal; rooms never cross
+        between families.
       </p>
     </div>
     <div id="dailyMount"></div>
@@ -86,6 +86,7 @@
       <div class="list-card">
         <h3>${s.clients?.initials || "Client"} <span class="pill scheduled">${s.status}</span></h3>
         <div class="meta">${new Date(s.starts_at).toLocaleString()}</div>
+        <button class="btn btn-sm" data-start-video="${s.id}">Start video</button>
       </div>`).join("")
     : `<div class="list-card"><div class="meta">No upcoming sessions.</div></div>`;
 
@@ -98,21 +99,34 @@
     document.querySelector("#localVideo").parentElement.innerHTML = "Camera unavailable<br><small>Allow camera access to preview.</small>";
   }
 
-  // ---- Daily.co two-way video (needs your room URL) ----
-  // TODO: create a room at https://dashboard.daily.co and paste its URL here.
-  const DAILY_ROOM_URL = "PASTE_YOUR_DAILY_ROOM_URL_HERE";
+  // ---- Per-session Daily.co video: each session gets its own private room ----
+  // "Start video" on a session calls the create-session-room Edge Function,
+  // which creates a unique Daily.co room and saves its URL on the session.
   let call = null;
 
-  document.getElementById("btnJoin").addEventListener("click", async () => {
-    if (DAILY_ROOM_URL.indexOf("PASTE_YOUR") === 0) {
-      alert("Add your Daily.co room URL in sessions.html (search for TODO) to enable two-way video.");
-      return;
+  async function joinSessionRoom(sessionId, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+    try {
+      const { data, error } = await JW.supabase.functions.invoke("create-session-room", {
+        body: { session_id: sessionId }
+      });
+      if (error) throw error;
+      if (!data || data.error) throw new Error((data && data.error) || "No room URL returned.");
+      if (call) { await call.leave(); call = null; }
+      call = window.DailyIframe.createFrame(document.getElementById("dailyMount"), {
+        iframeStyle: { width: "100%", height: "420px", border: "0", borderRadius: "12px" }
+      });
+      await call.join({ url: data.room_url });
+      document.getElementById("dailyMount").scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) {
+      alert("Could not start video: " + (e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Start video"; }
     }
-    call = window.DailyIframe.createFrame(document.getElementById("dailyMount"), {
-      iframeStyle: { width: "100%", height: "420px", border: "0", borderRadius: "12px" }
-    });
-    await call.join({ url: DAILY_ROOM_URL });
-  });
+  }
+
+  document.querySelectorAll("[data-start-video]").forEach(b =>
+    b.addEventListener("click", () => joinSessionRoom(b.dataset.startVideo, b)));
   document.getElementById("btnMute").addEventListener("click", (e) => {
     if (window._localStream) {
       const t = window._localStream.getAudioTracks()[0];
