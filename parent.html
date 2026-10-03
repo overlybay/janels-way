@@ -136,11 +136,6 @@
       }
     });
   }
-  document.getElementById("pvLeave").addEventListener("click", async () => {
-    if (pvCall) { await pvCall.leave(); pvCall = null; }
-    document.getElementById("pvRoom").style.display = "none";
-  });
-
   const upcoming = await loadUpcoming();
   const past = await loadPast();
 
@@ -233,6 +228,11 @@
     wireJoinButtons();
   }
   renderUpcoming(upcoming);
+
+  document.getElementById("pvLeave").addEventListener("click", async () => {
+    if (pvCall) { await pvCall.leave(); pvCall = null; }
+    document.getElementById("pvRoom").style.display = "none";
+  });
 
   // Keep the video tab fresh: re-check for started calls every 30 seconds.
   setInterval(async () => {
