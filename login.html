@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Janel's Way</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/supabase.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="index.html">Janel's <span>Way</span></a>
+  </header>
+
+  <main class="wrap">
+    <div class="form-card">
+      <div style="text-align:center">
+        <div class="logo" style="font-size:1.6rem">Janel's <span>Way</span></div>
+        <p style="color:var(--muted); margin:6px 0 0">Helping children shine, one step at a time.</p>
+        <div class="stars">★★★★★</div>
+      </div>
+
+      <div id="msg"></div>
+
+      <div class="field">
+        <label for="email">Email Address</label>
+        <input id="email" type="email" placeholder="your@email.com" autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn" id="signin" style="width:100%">Sign In →</button>
+
+      <p class="help">
+        New here? <a href="#" id="showSignup">Create a parent account</a><br>
+        <span id="signupHint" style="display:none">Parents: create an account below, then ask your BCBA to link it to your child.<br></span>
+      </p>
+      <button class="btn btn-outline" id="signup" style="width:100%; display:none">Create Account</button>
+
+      <div class="help">
+        Need help logging in? Call us: (254) 415-2235<br>
+        Email: lmanicones@hotmail.com
+      </div>
+    </div>
+  </main>
+
+  <footer>© 2026 Janel's Way. All rights reserved.</footer>
+
+  <script>
+    const msg = (html, cls) => {
+      document.getElementById("msg").innerHTML = html ? `<div class="${cls || "error"}">${html}</div>` : "";
+    };
+
+    async function afterAuth() {
+      // Read the user's role from profiles and route accordingly.
+      const profile = await JW.getProfile();
+      if (!profile) { msg("Signed in, but no profile found. Please contact support."); return; }
+      window.location.href = profile.role === "staff" ? "staff/dashboard.html" : "parent/index.html";
+    }
+
+    document.getElementById("showSignup").addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("signup").style.display = "block";
+      document.getElementById("signupHint").style.display = "inline";
+      e.target.style.display = "none";
+    });
+
+    document.getElementById("signin").addEventListener("click", async () => {
+      msg("");
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const { error } = await JW.supabase.auth.signInWithPassword({ email, password });
+      if (error) { msg(error.message); return; }
+      afterAuth();
+    });
+
+    document.getElementById("signup").addEventListener("click", async () => {
+      msg("");
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      if (password.length < 6) { msg("Please choose a password of at least 6 characters."); return; }
+      const { error } = await JW.supabase.auth.signUp({ email, password });
+      if (error) { msg(error.message); return; }
+      msg("Account created! A profile is being set up — signing you in…", "notice");
+      // The database trigger creates a 'parent' profile row automatically.
+      setTimeout(afterAuth, 1500);
+    });
+  </script>
+</body>
+</html>
